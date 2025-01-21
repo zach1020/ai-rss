@@ -1,101 +1,275 @@
-import Image from "next/image";
+"use client";
+import React, { useState, useEffect } from "react";
+import Parser from "rss-parser";
+
+// We'll just store the feed URLs in localStorage. 
+// Article data is fetched dynamically each time a feed is selected.
+const parser = new Parser();
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [rssFeeds, setRssFeeds] = useState<string[]>([]);
+  const [articles, setArticles] = useState<any[]>([]);
+  const [newFeed, setNewFeed] = useState<string>("");
+  const [selectedArticle, setSelectedArticle] = useState<any>(null);
+  const [summary, setSummary] = useState<string>("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  //
+  // Load any saved RSS feeds from localStorage on initial render
+  //
+  useEffect(() => {
+    const storedFeeds = localStorage.getItem("rssFeeds");
+    if (storedFeeds) {
+      setRssFeeds(JSON.parse(storedFeeds));
+    }
+  }, []);
+
+  //
+  // Whenever rssFeeds changes, save it to localStorage
+  //
+  useEffect(() => {
+    localStorage.setItem("rssFeeds", JSON.stringify(rssFeeds));
+  }, [rssFeeds]);
+
+  //
+  // Add a new feed, fetch its articles
+  //
+  const handleAddFeed = async () => {
+    if (newFeed.trim()) {
+      try {
+        // Add the new feed URL to our local list immediately
+        setRssFeeds((prev) => [...prev, newFeed.trim()]);
+        
+        // Fetch articles for the newly added feed (optional step)
+        const feed = await parser.parseURL(newFeed.trim());
+        const latestArticles = feed.items.slice(0, 10);
+        setArticles(latestArticles);
+        
+        setNewFeed(""); // clear input
+      } catch (error) {
+        console.error("Failed to fetch RSS feed:", error);
+        alert("Invalid RSS feed URL. Please try again.");
+      }
+    }
+  };
+
+  //
+  // When an article is clicked
+  //
+  const handleArticleClick = (article: any) => {
+    setSelectedArticle(article);
+    setSummary(""); // Clear summary for a new article
+  };
+
+  //
+  // Suppose you have a server route (/api/summarize) that 
+  // generates an AI summary. We'll illustrate a fetch call:
+  //
+  const generateSummary = async () => {
+    if (!selectedArticle) {
+      alert("Please select an article first.");
+      return;
+    }
+    const articleText = selectedArticle.content || selectedArticle.contentSnippet || "";
+    if (!articleText.trim()) {
+      alert("No article content available to summarize.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: articleText }),
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || "Failed to summarize text.");
+      }
+
+      const data = await res.json();
+      setSummary(data.summary);
+    } catch (error: any) {
+      console.error("Error generating summary:", error);
+      alert("Failed to generate AI summary. Please try again.");
+    }
+  };
+
+  return (
+    <div style={styles.pageContainer}>
+      {/* Top Pane */}
+      <div style={styles.topPane}>
+        <h1>RSS Reader</h1>
+        <div style={styles.addFeedContainer}>
+          <input
+            type="text"
+            placeholder="Enter RSS feed URL"
+            value={newFeed}
+            onChange={(e) => setNewFeed(e.target.value)}
+            style={styles.input}
+          />
+          <button onClick={handleAddFeed} style={styles.addButton}>
+            +
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {/* Main Content (Three Panes) */}
+      <div style={styles.mainContent}>
+        {/* Articles View */}
+        <div style={styles.articlesView}>
+          <h2>Articles</h2>
+          {articles.length === 0 ? (
+            <p>No articles to display. Add an RSS feed to see articles.</p>
+          ) : (
+            <div style={styles.articleCards}>
+              {articles.map((article, index) => (
+                <div
+                  key={index}
+                  style={styles.articleCard}
+                  onClick={() => handleArticleClick(article)}
+                >
+                  <h3 style={styles.articleTitle}>{article.title}</h3>
+                  <p style={styles.articleDescription}>
+                    {article.contentSnippet || "No description available."}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Reader View */}
+        <div style={styles.readerView}>
+          <h2>Reader</h2>
+          {selectedArticle ? (
+            <div>
+              <h3>{selectedArticle.title}</h3>
+              <p>
+                {selectedArticle.content ||
+                  selectedArticle.contentSnippet ||
+                  "No content available."}
+              </p>
+              <a
+                href={selectedArticle.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.articleLink}
+              >
+                Read Full Article
+              </a>
+            </div>
+          ) : (
+            <p>Select an article to read.</p>
+          )}
+        </div>
+
+        {/* AI Summary */}
+        <div style={styles.summaryView}>
+          <h2>AI Summary</h2>
+          <button onClick={generateSummary} style={styles.summaryButton}>
+            Generate AI Summary
+          </button>
+          <p>{summary || "The AI-generated summary will appear here."}</p>
+        </div>
+      </div>
     </div>
   );
 }
+
+/* ======================
+       CSS Styles
+====================== */
+const styles = {
+  pageContainer: {
+    display: "flex",
+    flexDirection: "column",
+    height: "100vh",
+  },
+  topPane: {
+    flex: "0 0 60px",
+    backgroundColor: "#000000",
+    borderBottom: "1px solid #ccc",
+    padding: "0.5rem 1rem",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addFeedContainer: {
+    display: "flex",
+    alignItems: "center",
+    marginTop: "0.5rem",
+  },
+  input: {
+    flex: 1,
+    padding: "0.5rem",
+    marginRight: "0.5rem",
+    borderRadius: "4px",
+    border: "1px solid #ccc",
+  },
+  addButton: {
+    backgroundColor: "#007BFF",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "4px",
+    padding: "0.5rem 1rem",
+    cursor: "pointer",
+  },
+  mainContent: {
+    display: "flex",
+    flex: 1,
+  },
+  articlesView: {
+    flex: 1,
+    borderRight: "1px solid #ccc",
+    padding: "1rem",
+    overflowY: "auto",
+  },
+  articleCards: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+  },
+  articleCard: {
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    padding: "1rem",
+    backgroundColor: "#000000",
+    cursor: "pointer",
+  },
+  articleTitle: {
+    fontSize: "1.2rem",
+    margin: "0 0 0.5rem 0",
+  },
+  articleDescription: {
+    fontSize: "0.9rem",
+    margin: "0 0 0.5rem 0",
+    color: "#555",
+  },
+  articleLink: {
+    fontSize: "0.9rem",
+    color: "#007BFF",
+    textDecoration: "none",
+  },
+  readerView: {
+    flex: 2,
+    borderRight: "1px solid #ccc",
+    padding: "1rem",
+    overflowY: "auto",
+  },
+  summaryView: {
+    flex: 1,
+    padding: "1rem",
+    overflowY: "auto",
+  },
+  summaryButton: {
+    backgroundColor: "#007BFF",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "4px",
+    padding: "0.5rem 1rem",
+    marginBottom: "1rem",
+    cursor: "pointer",
+  },
+};
